@@ -1,31 +1,27 @@
-# Shop API — Senior .NET Technical Test
+# ShopAPI
 
-## Solution Structure
+Enterprise-grade REST API built with **.NET 8**, Clean Architecture, CQRS, EF Core, and JWT authentication.
 
-```
-Shop.sln
-├── Shop.Domain            → Entities, Enums (no dependencies)
-├── Shop.Application       → CQRS Handlers, DTOs, Interfaces, Validators
-├── Shop.Infrastructure    → EF Core, Repositories, JWT TokenService
-├── Shop.Api.Host          → Controllers, Middleware, Program.cs
-└── Shop.Tests             → Unit Tests + Integration Tests
-```
+**Live:** https://shop.jayadulshuvo.com/swagger (coming soon)
 
-## Getting Started
+---
 
-### 1. Configure Secrets (never commit connection strings)
+## Quick Start
+
+### Option A — Docker (zero setup, recommended)
 
 ```bash
-cd Shop.Api.Host
-dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=.;Database=ShopDB;User Id=sa;Password=abc-1234;TrustServerCertificate=True;"
-dotnet user-secrets set "JwtSettings:Key" "SuperSecretKey_MinimumOf32CharactersRequired!"
-dotnet user-secrets set "JwtSettings:Issuer" "ShopApi"
-dotnet user-secrets set "JwtSettings:Audience" "ShopApiClients"
-dotnet user-secrets set "JwtSettings:ExpiryMinutes" "60"
+docker compose up --build
 ```
 
-### 2. Apply Migrations
+- API → http://localhost:8080/swagger  
+- SQL Server → localhost:1433 (sa / abc-1234)
+
+Database is auto-migrated and seeded on first run. No manual steps needed.
+
+### Option B — Run locally
+
+**1. Restore & migrate**
 
 ```bash
 cd Shop.Api.Host
@@ -33,133 +29,294 @@ dotnet ef migrations add InitialCreate --project ../Shop.Infrastructure --startu
 dotnet ef database update --project ../Shop.Infrastructure --startup-project .
 ```
 
-### 3. Run
+**2. Run**
 
 ```bash
 dotnet run --project Shop.Api.Host
-# Swagger: https://localhost:5001/swagger
+```
+
+Swagger → https://localhost:5001/swagger
+
+Connection string and JWT are pre-configured in `appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=.;Database=ShopDB;User Id=sa;Password=abc-1234;TrustServerCertificate=True;"
+  },
+  "JwtSettings": {
+    "Key": "ShopApi_SuperSecretKey_MustBeAtLeast64CharactersLongForHmacSha512Algorithm!!",
+    "Issuer": "ShopApi",
+    "Audience": "ShopApiClients",
+    "ExpiryMinutes": "60"
+  }
+}
 ```
 
 ---
 
-## Part B — Database & MSSQL Optimization
+## Seeded Accounts
 
-### Schema Design
+| Role     | Email                | Password     |
+|----------|----------------------|--------------|
+| Admin    | admin@shop.com       | Admin123!    |
+| Customer | john@customer.com    | Customer123! |
+| Customer | jane@customer.com    | Customer123! |
 
-**Customers table**
-- `IX_Customers_Email` — unique index; fast lookup + prevents duplicates
-- `IX_Customers_IsArchived` — filtered index for active-only queries
+**Seeded products:** Wireless Mouse · Mechanical Keyboard · USB-C Hub · 27" 4K Monitor · Laptop Stand · Webcam HD 1080p
 
-**Orders table**
-- `IX_Orders_Status_CreationDate` — composite index; covers date range + status filtering (matches WHERE clause column order)
-- `IX_Orders_CustomerId` — foreign key index; prevents full scan when loading customer's orders
+**Seeded orders:** 5 orders across all statuses — Pending, Processing, Shipped, Delivered, Cancelled
+
+---
+
+## API Testing — Postman Collection
+
+A ready-to-use Postman collection is included in the repo:
+
+📂 **[ShopAPI.postman_collection.json](./ShopAPI.postman_collection.json)**
+
+**Import:** Postman → `File → Import` → select the file.
+
+The collection includes:
+- **Auto token saving** — Login requests save the JWT to `{{token}}` automatically, used by all protected requests
+- **38 requests** across Auth, Products, Customers, Orders
+- **Negative tests** — 401, 403, 400 validation error cases
+- **End-to-End flow folder** — 7-step walkthrough: login as Admin → create product → create customer → login as Customer → browse products → place multi-item order → verify order
+
+---
+
+## Role Permissions
+
+| Endpoint                       | Customer | Admin |
+|--------------------------------|----------|-------|
+| POST /api/auth/register        | ✅ public | ✅ public |
+| POST /api/auth/login           | ✅ public | ✅ public |
+| GET  /api/products             | ✅        | ✅     |
+| POST /api/products             | ❌        | ✅     |
+| PUT  /api/products/{id}        | ❌        | ✅     |
+| DELETE /api/products/{id}      | ❌        | ✅     |
+| GET  /api/customers            | ❌        | ✅     |
+| POST /api/customers            | ❌        | ✅     |
+| PUT  /api/customers/{id}       | ❌        | ✅     |
+| DELETE /api/customers/{id}     | ❌        | ✅     |
+| GET  /api/orders               | ✅        | ✅     |
+| POST /api/orders               | ✅        | ✅     |
+
+---
+
+## Solution Structure
+
+```
+Shop.sln
+├── Shop.Domain            → Entities, Enums (zero dependencies)
+├── Shop.Application       → CQRS Handlers, DTOs, Interfaces, Validators, MappingProfile
+├── Shop.Infrastructure    → EF Core, Repositories, TokenService, DbSeeder
+├── Shop.Api.Host          → Controllers, Middleware, Program.cs, appsettings.json
+└── Shop.Tests             → Unit Tests (Moq) + Integration Tests (WebApplicationFactory)
+```
+
+**Dependency direction:** `Api.Host → Application + Infrastructure → Domain`. Application never references Infrastructure.
+
+---
+
+## Architecture
+
+### Clean Architecture + CQRS
+
+Every feature lives in its own folder:
+
+```
+Shop.Application/Features/{Feature}/
+    Commands/Create/   → Command · Handler · Validator
+    Commands/Update/   → Command · Handler · Validator
+    Commands/Delete/   → Command · Handler
+    Queries/GetAll/    → Query · Handler
+    Queries/GetById/   → Query · Handler
+    DTOs/              → XxxDto
+```
+
+Handlers return `ApiResponse<T>` wrapped in `IActionResult`. Controllers are thin — they set `CreatedBy` from the JWT claim and forward to MediatR.
+
+### FluentValidation Pipeline
+
+`ValidationBehavior<TRequest, TResponse>` runs all validators before the handler. Failures throw `ValidationException`, caught by `ExceptionHandlingMiddleware` and returned as `400 Bad Request` with a list of error messages.
+
+### Soft Delete
+
+No record is ever physically deleted. `IsArchived = true` hides it via a global EF Core `HasQueryFilter` on every entity configuration.
+
+---
+
+## Database
+
+### Indexes
+
+| Table       | Index |
+|-------------|-------|
+| Customers   | `IX_Customers_Email` (unique), `IX_Customers_IsArchived` |
+| Products    | `IX_Products_Name`, `IX_Products_IsArchived` |
+| Orders      | `IX_Orders_Status_CreationDate` (composite), `IX_Orders_CustomerId` |
+| OrderItems  | `IX_OrderItems_OrderId`, `IX_OrderItems_ProductId` |
+| Users       | `IX_Users_Email` (unique) |
 
 ### N+1 Prevention
-All repository queries use `.Include()` eagerly:
+
+All read queries use `AsNoTracking()` + `.Include().ThenInclude()`:
+
 ```csharp
-_db.Orders.AsNoTracking().Include(x => x.Customer)
+_db.Orders
+   .AsNoTracking()
+   .Include(x => x.Customer)
+   .Include(x => x.OrderItems)
+       .ThenInclude(oi => oi.Product)
 ```
-EF Core translates this to a single SQL JOIN — no lazy loading enabled, which would cause N+1 loops.
 
-### EF Core Performance Practices
-- `AsNoTracking()` on all read queries — no change tracking overhead
-- Pagination via `.Skip().Take()` with COUNT done in single pass
-- `HasQueryFilter` at entity configuration level for soft-delete filtering (globally applied)
-- No `Select *` — projection via DTO mapping
+EF Core translates this to a single SQL JOIN. Lazy loading is disabled.
 
-### Execution Plans (Guidance)
-Run queries in SSMS with "Include Actual Execution Plan" to verify:
-- Index Seek (not Scan) on filtered columns
-- Nested Loop Join is efficient for small result sets; Hash Join for large ones
-- Watch for Key Lookup — add covering columns to index if needed
+### Order Creation — Batch Product Loading
+
+`CreateOrderHandler` loads all requested products in one query to avoid N+1:
+
+```csharp
+var products = await _productRepository.GetByIdsAsync(requestedProductIds, ct);
+```
+
+Validates stock, snapshots `UnitPrice`, deducts stock, calculates `TotalAmount` — all before saving.
 
 ---
 
-## Part C — Security & Compliance
+## Security
 
-### JWT Authentication
-- HMACSHA512 password hashing with random salt per user
-- JWT signed with HS512; validated on every request via `JwtBearerDefaults.AuthenticationScheme`
-- All secrets stored in User Secrets (dev) or environment variables (prod/docker)
+### JWT + Password Hashing
 
-### GDPR Principles Applied
+- **Algorithm:** HMACSHA512 with a unique random salt per user
+- **Critical:** Salt is read from `hmac.Key` **before** calling `ComputeHash` — HMACSHA512 can mutate its key buffer during hashing; reading it after gives a different value, breaking all logins
+- **Token claims:** `NameIdentifier`, `Name`, `Email`, `Role` (stored as string `"Admin"` / `"Customer"` so `[Authorize(Roles = "Admin")]` works directly)
+
+### GDPR
+
 | Principle | Implementation |
 |-----------|---------------|
-| Data Minimisation | DTOs expose only required fields; no raw entity serialisation |
-| Right to Erasure | Soft delete (`IsArchived = true`) preserves audit trail while hiding from active queries |
-| Storage Limitation | Data retention policy should purge archived records after legal retention period (see below) |
-| Integrity | Email uniqueness enforced at DB + application level |
+| Data Minimisation | DTOs only — entities are never serialised directly |
+| Right to Erasure | Soft delete (`IsArchived = true`) — hidden from queries, audit trail preserved |
+| Integrity | Email uniqueness at DB level (unique index) + application level (`EmailExistsAsync`) |
+| Storage Limitation | Pattern: `BackgroundService` purges `IsArchived = true AND UpdatedDate < NOW() - retention` |
 
-### Input Validation & Security
-- FluentValidation on every Command/Query — rejects malformed input before hitting DB
-- EF Core parameterised queries throughout — zero raw SQL concatenation, eliminates SQL injection
-- No raw HTML output — JSON-only API eliminates XSS surface
-- `[Authorize]` on all resource endpoints; only `/api/auth/*` is public
+### Input Validation
 
-### Audit Logging (Implementation Guide)
-For production, add a MediatR pipeline behavior that logs every command/query:
+- FluentValidation on every Command/Query — rejects malformed input before hitting the DB
+- EF Core parameterised queries throughout — no SQL injection surface
+- JSON-only API — no XSS surface
+
+---
+
+## Testing
+
+```bash
+dotnet test
+```
+
+### Unit Tests
+
+| Class | Cases |
+|---|---|
+| `CreateCustomerHandlerTests` | Happy path, duplicate email, repository exception |
+| `CreateOrderHandlerTests` | Correct total calculation, customer not found, product not found, insufficient stock |
+
+Moq for repository mocking · FluentAssertions for readable assertions.
+
+### Integration Tests
+
+`ShopWebApplicationFactory` swaps SQL Server for EF InMemory and seeds test users/data. Tests exercise the full HTTP pipeline.
+
+| Test | Verifies |
+|---|---|
+| `Register_ValidUser_ReturnsOk` | Registration endpoint |
+| `Login_ValidAdminCredentials_ReturnsTokenDto` | Login + seeded admin account works |
+| `GetCustomers_WithoutToken_Returns401` | Auth middleware |
+| `CreateCustomer_WithValidAdminToken_ReturnsOk` | Admin role access |
+| `CreateCustomer_WithCustomerToken_Returns403` | Role restriction enforcement |
+
+---
+
+## Docker
+
+### Local development
+
+```bash
+docker compose up --build    # build image and start API + SQL Server
+docker compose down          # stop
+docker compose down -v       # stop and wipe the database volume
+```
+
+### Why the NuGet.Config is needed
+
+Running `docker compose up --build` on a Windows dev machine can fail with:
+
+```
+NuGet.Packaging.Core.PackagingException: Unable to find fallback package folder
+'C:\Program Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages'
+```
+
+The `NuGet.Config` at the solution root explicitly clears `fallbackPackageFolders`, and the Dockerfile uses `dotnet restore --force` to discard stale `project.assets.json` files. Both files must stay in the repo.
+
+### Security
+
+- Multi-stage build — SDK image is not shipped in the final image
+- Runs as non-root `appuser`
+- Only port 8080 exposed
+- All secrets passed as environment variables at runtime, never baked into the image
+
+---
+
+## CI/CD
+
+Push to `main` triggers `.github/workflows/deploy.yml`:
+
+1. **Build & Test** — `dotnet restore` → `dotnet build` → `dotnet test` (failures block deploy)
+2. **Docker Build** — builds `shopapi:main` image on the runner
+3. **Deploy** — saves image to `.tar`, copies to VPS via `scp`, loads and restarts container on port 5050
+4. **Nginx + SSL** — configures reverse proxy for `shop.jayadulshuvo.com` on first deploy, issues Let's Encrypt certificate
+
+### Required GitHub Secrets
+
+Go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret | Description |
+|--------|-------------|
+| `SERVER_IP` | VPS IP address |
+| `DEPLOY_USER` | SSH username (e.g. `root`) |
+| `DEPLOY_KEY` | SSH private key (contents of `~/.ssh/id_rsa`) |
+| `EMAIL` | Email for Let's Encrypt TLS certificate |
+
+---
+
+## Part B — DB Optimisation Notes
+
+**Execution plans (SSMS):** Run with *Include Actual Execution Plan* and verify:
+- **Index Seek** not Scan on filtered columns
+- **Nested Loop Join** is efficient for small sets; Hash Join for large ones
+- **Key Lookup** on a plan means you need covering columns added to that index
+
+---
+
+## Part C — Audit Logging Guide
+
+Add a MediatR pipeline behavior for production:
+
 ```csharp
 public class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    // Log: who (userId from Claims), what (TRequest type), when (UTC timestamp), result (success/fail)
-    // Write to: Serilog structured logs → MSSQL AuditLogs table or Azure Monitor
+    // Log: who (userId from JWT claims), what (TRequest type name),
+    //      when (UTC), result (success/fail), old/new values
+    // Sink: Serilog structured log → MSSQL AuditLogs table or Azure Monitor
 }
 ```
-AuditLog table columns: `Id, UserId, Action, EntityType, EntityId, Timestamp, IpAddress, OldValues, NewValues`
 
-### Data Retention Policy
-- Scheduled background job (e.g. Hangfire or .NET BackgroundService) runs nightly
-- Permanently deletes records where `IsArchived = true AND UpdatedDate < NOW() - RetentionPeriod`
-- Retention period configured per entity type in `appsettings.json`
-- Before deletion, export anonymised aggregate data if needed for analytics
+`AuditLogs` table: `Id · UserId · Action · EntityType · EntityId · Timestamp · IpAddress · OldValues · NewValues`
 
----
+### Data Retention
 
-## Part D — Testing & DevOps
-
-### Unit Tests
-- `CreateCustomerHandlerTests` — validates happy path, duplicate email, repository exception
-- `CreateOrderHandlerTests` — validates order creation, customer-not-found guard
-- Moq used to mock `ICustomerRepository`, `IOrderRepository`
-- FluentAssertions for readable, expressive assertions
-
-### Integration Tests
-- `ShopWebApplicationFactory` replaces SQL Server with EF InMemory database
-- Tests full HTTP pipeline: routing → middleware → handler → repository → response
-- Covers: register, login, unauthorized access, create customer with token
-
-### CI/CD Pipeline (GitHub Actions Example)
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on: [push, pull_request]
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
-      - run: dotnet restore
-      - run: dotnet build --no-restore
-      - run: dotnet test --no-build --verbosity normal
-      - run: docker build -t shop-api .   # verify image builds
-```
-- Unit + integration tests run on every PR and push
-- Test failures block merge
-- For CD: push Docker image to registry, deploy to K8s or App Service
-
-### Docker
-
-```bash
-# Build and run locally
-docker compose up --build
-
-# API available at http://localhost:8080/swagger
-```
-
-**Security hardening in Dockerfile:**
-- Multi-stage build (SDK image not in final image)
-- Runs as non-root `appuser`
-- Only port 8080 exposed
-- Secrets injected via environment variables at runtime, never baked into image
+- `BackgroundService` (or Hangfire) runs nightly
+- Permanently deletes: `IsArchived = true AND UpdatedDate < NOW() - RetentionPeriod`
+- Retention period configurable per entity in `appsettings.json`

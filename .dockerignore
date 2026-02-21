@@ -1,0 +1,38 @@
+## Git
+.git
+.gitignore
+.gitattributes
+
+## Build output — CRITICAL: obj/ contains project.assets.json files baked on Windows
+## with 'C:\Program Files (x86)\...\NuGetPackages' fallback paths.
+## If these are copied into the container the publish step fails even after restore.
+**/obj/
+**/bin/
+
+## IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+
+## Docker files themselves
+.dockerignore
+docker-compose*.yml
+
+## CI/CD
+.github/
+.gitlab-ci.yml
+
+## Docs / misc
+README.md
+QUICK_START.md
+AI_HANDOFF_PROMPT.md
+*.md
+
+## Local secrets — never bake into image
+**/secrets.json
+**/appsettings.Development.json
+
+## Logs
+logs/
+*.log

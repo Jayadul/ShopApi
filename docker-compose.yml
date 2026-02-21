@@ -1,15 +1,17 @@
-version: "3.9"
-
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: shopapi
+    restart: always
     ports:
       - "8080:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Server=db;Database=ShopDB;User Id=sa;Password=YourStrong@Password123;TrustServerCertificate=True;
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Internal Docker networking uses the service name 'db' on default port 1433.
+      # The host port mapping (14330) does not affect internal container communication.
+      - ConnectionStrings__DefaultConnection=Server=db;Database=ShopDB;User Id=sa;Password=abc-1234;TrustServerCertificate=True;
       - JwtSettings__Key=ShopApi_SuperSecretKey_MustBeAtLeast64CharactersLongForHmacSha512Algorithm!!
       - JwtSettings__Issuer=ShopApi
       - JwtSettings__Audience=ShopApiClients
@@ -17,21 +19,38 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - shopnet
 
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: shopapi-db
+    restart: always
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Password123
+      - SA_PASSWORD=abc-1234
+      - MSSQL_PID=Express
     ports:
-      - "1433:1433"
+      # FIXED: Map Host Port 14330 -> Container Port 1433 to avoid conflict with local SQL Server
+      - "14330:1433"
     volumes:
       - sqldata:/var/opt/mssql
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong@Password123", "-Q", "SELECT 1"]
-      interval: 10s
+      test:
+        - "CMD-SHELL"
+        - |
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'abc-1234' -Q 'SELECT 1' -No 2>/dev/null ||
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'abc-1234' -Q 'SELECT 1' 2>/dev/null
+      interval: 15s
+      timeout: 10s
       retries: 10
-      start_period: 30s
+      start_period: 45s
+    networks:
+      - shopnet
 
 volumes:
   sqldata:
+
+networks:
+  shopnet:
+    driver: bridge

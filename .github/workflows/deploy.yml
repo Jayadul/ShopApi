@@ -1,0 +1,145 @@
+name: ShopAPI — Build, Test & Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # ── Job 1: Build & Test ────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore Shop.sln --force
+
+      - name: Build
+        run: dotnet build Shop.sln --no-restore -c Release
+
+      - name: Run tests
+        run: dotnet test Shop.sln --no-build -c Release --verbosity normal
+
+  # ── Job 2: Docker Build & Deploy ──────────────────────────────────────────
+  deploy:
+    name: Docker Build & Deploy
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Build Docker image
+        run: docker build -t shopapi:main .
+
+      - name: Save Docker image to tar
+        run: docker save shopapi:main > shopapi-main.tar
+
+      - name: Copy image to server
+        run: scp shopapi-main.tar ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }}:/root/shopapi-main.tar
+
+      - name: Deploy on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "
+            set -e
+
+            # Load new image
+            docker load < /root/shopapi-main.tar
+            rm -f /root/shopapi-main.tar
+
+            # Stop and remove old API container
+            docker stop shopapi || true
+            docker rm   shopapi || true
+
+            # Start DB container on first deploy (subsequent deploys: already running)
+            if ! docker ps -a --format '{{.Names}}' | grep -q '^shopapi-db$'; then
+              docker run -d \
+                --name shopapi-db \
+                --restart always \
+                -e ACCEPT_EULA=Y \
+                -e SA_PASSWORD=abc-1234 \
+                -e MSSQL_PID=Express \
+                -p 1433:1433 \
+                -v shopapi_sqldata:/var/opt/mssql \
+                mcr.microsoft.com/mssql/server:2022-latest
+              echo 'Waiting 45s for SQL Server to initialise on first run...'
+              sleep 45
+            fi
+
+            # Start new API container
+            docker run -d \
+              --name shopapi \
+              --restart always \
+              -p 5050:8080 \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              -e 'ConnectionStrings__DefaultConnection=Server=shopapi-db;Database=ShopDB;User Id=sa;Password=abc-1234;TrustServerCertificate=True;' \
+              -e 'JwtSettings__Key=ShopApi_SuperSecretKey_MustBeAtLeast64CharactersLongForHmacSha512Algorithm!!' \
+              -e 'JwtSettings__Issuer=ShopApi' \
+              -e 'JwtSettings__Audience=ShopApiClients' \
+              -e 'JwtSettings__ExpiryMinutes=60' \
+              --link shopapi-db:shopapi-db \
+              shopapi:main
+
+            # Clean up old dangling images
+            docker image prune -f
+
+            echo 'Deploy complete'
+          "
+
+      - name: Configure Nginx & SSL
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} "
+            NGINX_CONF='/etc/nginx/sites-available/shop.jayadulshuvo.com'
+
+            if [ ! -f \$NGINX_CONF ]; then
+              echo 'server {
+                listen 80;
+                server_name shop.jayadulshuvo.com;
+
+                location / {
+                  proxy_pass         http://localhost:5050;
+                  proxy_http_version 1.1;
+                  proxy_set_header   Upgrade \$http_upgrade;
+                  proxy_set_header   Connection keep-alive;
+                  proxy_set_header   Host \$host;
+                  proxy_set_header   X-Real-IP \$remote_addr;
+                  proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header   X-Forwarded-Proto \$scheme;
+                  proxy_cache_bypass \$http_upgrade;
+                }
+              }' | sudo tee \$NGINX_CONF
+
+              sudo ln -sf \$NGINX_CONF /etc/nginx/sites-enabled/shop.jayadulshuvo.com
+              sudo nginx -t && sudo systemctl reload nginx
+
+              # Issue SSL cert (first deploy only)
+              sudo certbot --nginx \
+                -d shop.jayadulshuvo.com \
+                --non-interactive \
+                --agree-tos \
+                -m ${{ secrets.EMAIL }}
+            else
+              sudo nginx -t && sudo systemctl reload nginx
+              echo 'Nginx already configured — reloaded'
+            fi
+          "
