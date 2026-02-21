@@ -1,0 +1,1116 @@
+{
+  "info": {
+    "_postman_id": "shopapi-collection-v1",
+    "name": "ShopAPI",
+    "description": "Complete ShopAPI collection.\n\n**Quick Start:**\n1. Make sure the API is running on https://localhost:5001\n2. Use `Auth / Login as Admin` or `Auth / Login as Customer` — the token is saved automatically\n3. All protected requests use `{{token}}` automatically — no manual copy-paste needed\n\n**Seeded Accounts:**\n- Admin: admin@shop.com / Admin123!\n- Customer: john@customer.com / Customer123!\n- Customer: jane@customer.com / Customer123!\n\n**Role Rules:**\n- Customers → can browse products and manage their own orders\n- Admin → full access to everything",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",  "value": "https://localhost:2858", "type": "string" },
+    { "key": "token",    "value": "", "type": "string" },
+    { "key": "customerId", "value": "1", "type": "string" },
+    { "key": "productId",  "value": "1", "type": "string" },
+    { "key": "orderId",    "value": "1", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 Auth",
+      "item": [
+
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Success is true', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "description": "Register a new user. All new accounts are created with the **Customer** role."
+          }
+        },
+
+        {
+          "name": "Login as Admin 🔑",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has token', () => pm.expect(json.data.token).to.be.a('string').and.not.empty);",
+                  "pm.test('Role is Admin', () => pm.expect(json.data.role).to.eql('Admin'));",
+                  "// Auto-save token for all subsequent requests",
+                  "pm.collectionVariables.set('token', json.data.token);",
+                  "console.log('✅ Admin token saved:', json.data.token.substring(0,40) + '...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@shop.com\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "description": "Login as Admin. Token is **automatically saved** to `{{token}}` and used by all protected requests."
+          }
+        },
+
+        {
+          "name": "Login as Customer 🔑",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has token', () => pm.expect(json.data.token).to.be.a('string').and.not.empty);",
+                  "pm.test('Role is Customer', () => pm.expect(json.data.role).to.eql('Customer'));",
+                  "// Auto-save token for all subsequent requests",
+                  "pm.collectionVariables.set('token', json.data.token);",
+                  "console.log('✅ Customer token saved:', json.data.token.substring(0,40) + '...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@customer.com\",\n  \"password\": \"Customer123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "description": "Login as Customer. Token is **automatically saved** to `{{token}}`."
+          }
+        },
+
+        {
+          "name": "Login as Customer 2 🔑",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.data.token);",
+                  "console.log('✅ Customer2 token saved');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane@customer.com\",\n  \"password\": \"Customer123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] }
+          }
+        },
+
+        {
+          "name": "Login - Invalid Password (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Success is false', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@shop.com\",\n  \"password\": \"WrongPassword\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "description": "Negative test — expects 401 Unauthorized."
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "📦 Products",
+      "description": "GET endpoints: any authenticated user.\nPOST / PUT / DELETE: Admin only.",
+      "item": [
+
+        {
+          "name": "Get All Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success is true', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Items is array', () => pm.expect(json.data.items).to.be.an('array'));",
+                  "// Auto-save first product id for use in other requests",
+                  "if (json.data.items.length > 0) {",
+                  "    pm.collectionVariables.set('productId', json.data.items[0].id);",
+                  "    console.log('📌 productId set to:', json.data.items[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?pageNumber=1&pageSize=10&searchBy=&orderPropertyName=name&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","products"],
+              "query": [
+                { "key": "pageNumber",       "value": "1" },
+                { "key": "pageSize",         "value": "10" },
+                { "key": "searchBy",         "value": "",   "description": "Search by name or description" },
+                { "key": "orderPropertyName","value": "name", "description": "name | price" },
+                { "key": "sortOrder",        "value": "asc",  "description": "asc | desc" }
+              ]
+            },
+            "description": "Paginated product list. Saves first product ID to `{{productId}}` automatically."
+          }
+        },
+
+        {
+          "name": "Get All Products - Search",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?pageNumber=1&pageSize=5&searchBy=keyboard&orderPropertyName=price&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","products"],
+              "query": [
+                { "key": "pageNumber",       "value": "1" },
+                { "key": "pageSize",         "value": "5" },
+                { "key": "searchBy",         "value": "keyboard" },
+                { "key": "orderPropertyName","value": "price" },
+                { "key": "sortOrder",        "value": "desc" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Get Product by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has product name', () => pm.expect(json.data.name).to.be.a('string').and.not.empty);",
+                  "pm.test('Has price > 0', () => pm.expect(json.data.price).to.be.above(0));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","products","{{productId}}"] }
+          }
+        },
+
+        {
+          "name": "Get Product by ID - Not Found (expect 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Success is false', () => pm.expect(pm.response.json().success).to.be.false);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/99999", "host": ["{{baseUrl}}"], "path": ["api","products","99999"] }
+          }
+        },
+
+        {
+          "name": "Create Product (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Product created', () => pm.expect(json.success).to.be.true);",
+                  "// Save new product id",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('productId', json.data.id);",
+                  "    console.log('📌 New productId:', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Noise Cancelling Headphones\",\n  \"description\": \"Over-ear wireless headphones with active noise cancellation, 30hr battery, USB-C charging.\",\n  \"price\": 129.99,\n  \"stock\": 60\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] },
+            "description": "⚠️ Requires Admin token. Login as Admin first."
+          }
+        },
+
+        {
+          "name": "Create Product - Validation Error (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has errors array', () => pm.expect(json.errors).to.be.an('array').and.not.empty);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"description\": \"Missing name and negative price\",\n  \"price\": -10,\n  \"stock\": -5\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] }
+          }
+        },
+
+        {
+          "name": "Update Product (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Success is true', () => pm.expect(pm.response.json().success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Noise Cancelling Headphones (Updated)\",\n  \"description\": \"Updated description with improved specs.\",\n  \"price\": 119.99,\n  \"stock\": 75\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","products","{{productId}}"] },
+            "description": "⚠️ Requires Admin token. Uses `{{productId}}` saved from Create or Get All."
+          }
+        },
+
+        {
+          "name": "Delete Product (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Archived', () => pm.expect(pm.response.json().success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","products","{{productId}}"] },
+            "description": "⚠️ Requires Admin token. Soft-deletes (archives) the product — does not permanently remove it."
+          }
+        },
+
+        {
+          "name": "Get Products - No Token (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] },
+            "description": "Negative test — no auth header, expects 401."
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "👥 Customers",
+      "description": "All endpoints require **Admin** role.",
+      "item": [
+
+        {
+          "name": "Get All Customers (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success is true', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Items is array', () => pm.expect(json.data.items).to.be.an('array'));",
+                  "if (json.data.items.length > 0) {",
+                  "    pm.collectionVariables.set('customerId', json.data.items[0].id);",
+                  "    console.log('📌 customerId set to:', json.data.items[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers?pageNumber=1&pageSize=10&searchBy=&orderPropertyName=fullName&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","customers"],
+              "query": [
+                { "key": "pageNumber",        "value": "1" },
+                { "key": "pageSize",          "value": "10" },
+                { "key": "searchBy",          "value": "",  "description": "Search by name or email" },
+                { "key": "orderPropertyName", "value": "fullName", "description": "fullName | email" },
+                { "key": "sortOrder",         "value": "asc" }
+              ]
+            },
+            "description": "⚠️ Requires Admin token. Saves first customer ID to `{{customerId}}`."
+          }
+        },
+
+        {
+          "name": "Get All Customers - Search by Name",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers?pageNumber=1&pageSize=10&searchBy=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","customers"],
+              "query": [
+                { "key": "pageNumber", "value": "1" },
+                { "key": "pageSize",   "value": "10" },
+                { "key": "searchBy",   "value": "john" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Get Customer by ID (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has fullName', () => pm.expect(json.data.fullName).to.be.a('string').and.not.empty);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api","customers","{{customerId}}"] }
+          }
+        },
+
+        {
+          "name": "Create Customer (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Customer created', () => pm.expect(json.success).to.be.true);",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('customerId', json.data.id);",
+                  "    console.log('📌 New customerId:', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Alice Walker\",\n  \"email\": \"alice.walker@example.com\",\n  \"phone\": \"+1-555-0201\",\n  \"address\": \"99 Maple Drive, Seattle, WA 98101\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers", "host": ["{{baseUrl}}"], "path": ["api","customers"] },
+            "description": "⚠️ Requires Admin token."
+          }
+        },
+
+        {
+          "name": "Create Customer - Duplicate Email (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Success is false', () => pm.expect(pm.response.json().success).to.be.false);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Duplicate John\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+1-555-9999\",\n  \"address\": \"Anywhere\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers", "host": ["{{baseUrl}}"], "path": ["api","customers"] },
+            "description": "john.doe@example.com is already seeded — expects 400."
+          }
+        },
+
+        {
+          "name": "Update Customer (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Success is true', () => pm.expect(pm.response.json().success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Alice Walker (Updated)\",\n  \"email\": \"alice.walker.updated@example.com\",\n  \"phone\": \"+1-555-0202\",\n  \"address\": \"100 Maple Drive, Seattle, WA 98101\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api","customers","{{customerId}}"] }
+          }
+        },
+
+        {
+          "name": "Delete Customer (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Archived', () => pm.expect(pm.response.json().success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api","customers","{{customerId}}"] },
+            "description": "Soft-deletes the customer. Uses `{{customerId}}`."
+          }
+        },
+
+        {
+          "name": "Get Customers - Customer Token (expect 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/customers", "host": ["{{baseUrl}}"], "path": ["api","customers"] },
+            "description": "⚠️ First login as Customer, then run this — expects 403 Forbidden."
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "🛒 Orders",
+      "description": "All authenticated users can create and view orders.",
+      "item": [
+
+        {
+          "name": "Get All Orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success is true', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Items is array', () => pm.expect(json.data.items).to.be.an('array'));",
+                  "if (json.data.items.length > 0) {",
+                  "    pm.collectionVariables.set('orderId', json.data.items[0].id);",
+                  "    console.log('📌 orderId set to:', json.data.items[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?pageNumber=1&pageSize=10&orderPropertyName=creationDate&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","orders"],
+              "query": [
+                { "key": "pageNumber",        "value": "1" },
+                { "key": "pageSize",          "value": "10" },
+                { "key": "customerId",        "value": "",   "disabled": true, "description": "Filter by customer ID (Admin sees all, Customer sees own)" },
+                { "key": "status",            "value": "",   "disabled": true, "description": "1=Pending 2=Processing 3=Shipped 4=Delivered 5=Cancelled" },
+                { "key": "fromDate",          "value": "",   "disabled": true, "description": "e.g. 2025-01-01" },
+                { "key": "toDate",            "value": "",   "disabled": true, "description": "e.g. 2025-12-31" },
+                { "key": "orderPropertyName", "value": "creationDate", "description": "totalAmount | status | creationDate" },
+                { "key": "sortOrder",         "value": "desc" }
+              ]
+            },
+            "description": "Saves first order ID to `{{orderId}}`."
+          }
+        },
+
+        {
+          "name": "Get All Orders - Filter by Status (Pending)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?pageNumber=1&pageSize=10&status=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","orders"],
+              "query": [
+                { "key": "pageNumber", "value": "1" },
+                { "key": "pageSize",   "value": "10" },
+                { "key": "status",     "value": "1", "description": "1=Pending" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Get All Orders - Filter by Date Range",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?pageNumber=1&pageSize=10&fromDate=2025-01-01&toDate=2025-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","orders"],
+              "query": [
+                { "key": "pageNumber", "value": "1" },
+                { "key": "pageSize",   "value": "10" },
+                { "key": "fromDate",   "value": "2025-01-01" },
+                { "key": "toDate",     "value": "2025-12-31" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Get All Orders - Filter by Customer",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?pageNumber=1&pageSize=10&customerId={{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","orders"],
+              "query": [
+                { "key": "pageNumber",  "value": "1" },
+                { "key": "pageSize",    "value": "10" },
+                { "key": "customerId",  "value": "{{customerId}}" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Create Order - Single Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Order created', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Has order number', () => pm.expect(json.data.orderNumber).to.match(/^ORD-/));",
+                  "pm.test('Status is Pending (1)', () => pm.expect(json.data.status).to.eql(1));",
+                  "pm.test('Has items array', () => pm.expect(json.data.items).to.be.an('array').and.not.empty);",
+                  "pm.test('TotalAmount > 0', () => pm.expect(json.data.totalAmount).to.be.above(0));",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('orderId', json.data.id);",
+                  "    console.log('📌 New orderId:', json.data.id, '| Total:', json.data.totalAmount);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"notes\": \"Please deliver before 5pm\",\n  \"items\": [\n    { \"productId\": 1, \"quantity\": 2 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] },
+            "description": "Creates an order for Customer ID 1 with 1 product. TotalAmount is calculated automatically from product price × quantity."
+          }
+        },
+
+        {
+          "name": "Create Order - Multiple Items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Order created', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Has 3 items', () => pm.expect(json.data.items).to.have.lengthOf(3));",
+                  "pm.test('TotalAmount is correct', () => {",
+                  "    const total = json.data.items.reduce((sum, i) => sum + i.lineTotal, 0);",
+                  "    pm.expect(json.data.totalAmount).to.be.closeTo(total, 0.01);",
+                  "});",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('orderId', json.data.id);",
+                  "    console.log('📌 Multi-item orderId:', json.data.id, '| Total:', json.data.totalAmount);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"notes\": \"Bulk office order\",\n  \"items\": [\n    { \"productId\": 1, \"quantity\": 2 },\n    { \"productId\": 2, \"quantity\": 1 },\n    { \"productId\": 3, \"quantity\": 3 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] },
+            "description": "Multi-product order. Stock is deducted for each product. TotalAmount is auto-calculated. Prices are snapshotted at time of order."
+          }
+        },
+
+        {
+          "name": "Create Order - Customer Not Found (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Customer not found error', () => {",
+                  "    pm.expect(pm.response.json().message).to.include('Customer not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 99999,\n  \"notes\": \"This customer does not exist\",\n  \"items\": [\n    { \"productId\": 1, \"quantity\": 1 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] }
+          }
+        },
+
+        {
+          "name": "Create Order - Insufficient Stock (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Insufficient stock error', () => {",
+                  "    pm.expect(pm.response.json().message).to.include('Insufficient stock');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"notes\": \"Ordering way too many\",\n  \"items\": [\n    { \"productId\": 1, \"quantity\": 999999 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] }
+          }
+        },
+
+        {
+          "name": "Create Order - Empty Items (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Has validation errors', () => pm.expect(pm.response.json().errors).to.be.an('array').and.not.empty);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 1,\n  \"notes\": \"No items provided\",\n  \"items\": []\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] }
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "🔁 End-to-End Flow",
+      "description": "Run these in order for a full happy-path walkthrough:\n1. Login as Admin\n2. Create a Product\n3. Create a Customer\n4. Login as Customer\n5. Browse Products\n6. Place a Multi-Item Order\n7. Verify Order in List",
+      "item": [
+
+        {
+          "name": "Step 1 - Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.data.token);",
+                  "console.log('Step 1 ✅ Admin logged in');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@shop.com\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] }
+          }
+        },
+
+        {
+          "name": "Step 2 - Create a Product (as Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('productId', json.data.id);",
+                  "console.log('Step 2 ✅ Product created, ID:', json.data.id, 'Price:', json.data.price);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gaming Mouse Pro\",\n  \"description\": \"High precision 16000 DPI gaming mouse with RGB lighting.\",\n  \"price\": 79.99,\n  \"stock\": 200\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api","products"] }
+          }
+        },
+
+        {
+          "name": "Step 3 - Create a Customer (as Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customerId', json.data.id);",
+                  "console.log('Step 3 ✅ Customer created, ID:', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"E2E Test Customer\",\n  \"email\": \"e2e.test@example.com\",\n  \"phone\": \"+1-555-0300\",\n  \"address\": \"1 Test Boulevard, Austin, TX 73301\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/customers", "host": ["{{baseUrl}}"], "path": ["api","customers"] }
+          }
+        },
+
+        {
+          "name": "Step 4 - Login as Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.data.token);",
+                  "console.log('Step 4 ✅ Customer logged in, role:', json.data.role);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@customer.com\",\n  \"password\": \"Customer123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] }
+          }
+        },
+
+        {
+          "name": "Step 5 - Browse Products (as Customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "console.log('Step 5 ✅ Products browsed, total:', json.data.totalCount);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?pageNumber=1&pageSize=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","products"],
+              "query": [
+                { "key": "pageNumber", "value": "1" },
+                { "key": "pageSize",   "value": "10" }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "Step 6 - Place a Multi-Item Order (as Customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order placed', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('orderId', json.data.id);",
+                  "console.log('Step 6 ✅ Order placed!');",
+                  "console.log('   Order Number:', json.data.orderNumber);",
+                  "console.log('   Total Amount: $' + json.data.totalAmount);",
+                  "console.log('   Items:', json.data.items.length);",
+                  "json.data.items.forEach(i => {",
+                  "    console.log('   -', i.productName, 'x' + i.quantity, '@ $' + i.unitPrice, '= $' + i.lineTotal);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": {{customerId}},\n  \"notes\": \"E2E test order — multi-item\",\n  \"items\": [\n    { \"productId\": 1, \"quantity\": 1 },\n    { \"productId\": 2, \"quantity\": 1 },\n    { \"productId\": {{productId}}, \"quantity\": 2 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api","orders"] }
+          }
+        },
+
+        {
+          "name": "Step 7 - Verify Order in List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Orders fetched', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "const orderId = parseInt(pm.collectionVariables.get('orderId'));",
+                  "const found = json.data.items.find(o => o.id === orderId);",
+                  "pm.test('Created order appears in list', () => pm.expect(found).to.not.be.undefined);",
+                  "if (found) console.log('Step 7 ✅ Order verified! Status:', found.status, '| Total: $' + found.totalAmount);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?pageNumber=1&pageSize=20&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","orders"],
+              "query": [
+                { "key": "pageNumber", "value": "1" },
+                { "key": "pageSize",   "value": "20" },
+                { "key": "sortOrder",  "value": "desc" }
+              ]
+            }
+          }
+        }
+
+      ]
+    }
+
+  ]
+}

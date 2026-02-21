@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=db;Database=ShopDB;User Id=sa;Password=YourStrong@Password123;TrustServerCertificate=True;
+      - JwtSettings__Key=ShopApi_SuperSecretKey_MustBeAtLeast64CharactersLongForHmacSha512Algorithm!!
+      - JwtSettings__Issuer=ShopApi
+      - JwtSettings__Audience=ShopApiClients
+      - JwtSettings__ExpiryMinutes=60
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Password123
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong@Password123", "-Q", "SELECT 1"]
+      interval: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  sqldata:
